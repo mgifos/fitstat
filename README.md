@@ -1,2 +1,2 @@
-# fit4s
-Garmin fit files parser written in Scala
+# fitstat
+Conversion of Garmin TCX files to HTML
