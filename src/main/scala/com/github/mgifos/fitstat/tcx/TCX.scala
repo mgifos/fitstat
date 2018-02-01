@@ -1,4 +1,4 @@
-package com.github.mgifos.tcx
+package com.github.mgifos.fitstat.tcx
 
 import java.time.ZonedDateTime
 

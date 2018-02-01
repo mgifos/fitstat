@@ -3,8 +3,8 @@ package com.github.mgifos.fitstat
 import java.io.PrintWriter
 import java.nio.file.Paths
 
-import com.github.mgifos.tcx.JsonWritesImplicits._
-import com.github.mgifos.tcx.{ Activity, TCX }
+import com.github.mgifos.fitstat.tcx.JsonWritesImplicits._
+import com.github.mgifos.fitstat.tcx.{ Activity, TCX }
 import com.typesafe.scalalogging.Logger
 import play.api.libs.json.Json
 

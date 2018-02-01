@@ -3,7 +3,7 @@ package com.github.mgifos.fitstat
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ Flow, GraphDSL, RunnableGraph, Sink }
 import akka.stream.{ ActorMaterializer, ClosedShape }
-import com.github.mgifos.tcx.Activity
+import com.github.mgifos.fitstat.tcx.Activity
 
 import scala.concurrent.Future
 import scala.util.{ Failure, Success }
