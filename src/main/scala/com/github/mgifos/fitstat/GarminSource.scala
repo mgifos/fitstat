@@ -26,7 +26,7 @@ class GarminSource(email: String, password: String)(implicit system: ActorSystem
 
   case class ActivitiesPage(no: Int, activities: Seq[GarminActivity])
 
-  case class GarminActivity(id: Long, name: String, date: String) {
+  case class GarminActivity(id: Long, name: String, date: String, desc: String) {
     def tcxFileName = s"${date}_${id}_${name}.tcx".replaceAll("[^a-zA-Z0-9\\.\\-]", "_")
   }
 
@@ -124,7 +124,8 @@ class GarminSource(email: String, password: String)(implicit system: ActorSystem
             activities.map(a => GarminActivity(
               (a \ "activityId").as[Long],
               (a \ "activityName").asOpt[String].getOrElse("no-name"),
-              (a \ "startTimeLocal").asOpt[String].map(_.take(10)).getOrElse("no-date")
+              (a \ "startTimeLocal").asOpt[String].map(_.take(10)).getOrElse("no-date"),
+              (a \ "description").asOpt[String].getOrElse("")
             ))
           }.recoverWith {
             case e: Exception =>
@@ -154,20 +155,19 @@ class GarminSource(email: String, password: String)(implicit system: ActorSystem
       )
       tcxContent <- res.entity.toStrict(10.seconds).map(_.data.utf8String)
     } yield {
-      val rule = new RuleTransformer(new AddActivityName(ga.name))
+      class FixActivityNotes(name: String, desc: String) extends RewriteRule {
+        override def transform(n: Node): Seq[Node] = n match {
+          case e: Elem if e.label == "Activity" =>
+            val children = e.child
+            val notes = children.find(_.label == "Notes")
+            val newNotes = notes.map(old => <Notes>{ s"$name\n${old.text}" }</Notes>).getOrElse(<Notes>{ s"$name\n$desc" }</Notes>)
+            new Elem(e.prefix, e.label, e.attributes, e.scope, e.minimizeEmpty, children.filter(_.label != "Notes") ++ newNotes: _*)
+          case x => x
+        }
+      }
+      val rule = new RuleTransformer(new FixActivityNotes(ga.name, ga.desc))
       val originalTcx = XML.loadString(tcxContent)
       FileEntry(ga.tcxFileName, rule.transform(originalTcx).head.toString)
-    }
-  }
-
-  class AddActivityName(name: String) extends RewriteRule {
-    override def transform(n: Node): Seq[Node] = n match {
-      case e: Elem if e.label == "Activity" =>
-        val children = e.child
-        val notes = children.find(_.label == "Notes")
-        val newNotes = notes.map(old => <Notes>{ s"$name\n${old.text}" }</Notes>).getOrElse(<Notes>{ name }</Notes>)
-        new Elem(e.prefix, e.label, e.attributes, e.scope, e.minimizeEmpty, children.filter(_.label != "Notes") ++ newNotes: _*)
-      case x => x
     }
   }
 

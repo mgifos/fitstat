@@ -1,5 +1,6 @@
 
 GET         /                   com.github.mgifos.fitstat.controllers.Application.index
+GET         /socket             com.github.mgifos.fitstat.controllers.Application.socket
 POST        /importFromZip      com.github.mgifos.fitstat.controllers.Application.importFromZip
 
 # Map static resources from the /public folder to the /assets URL path
