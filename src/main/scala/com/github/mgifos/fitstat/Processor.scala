@@ -27,7 +27,7 @@ class PrintFileNameProcessor extends Processor {
   private val log = Logger(getClass)
   override def process(input: FileEntry) = {
     log.info(input.fileName)
-    Future.successful(Activity(input.fileName, Seq.empty))
+    Future.successful(Activity(input.fileName, "Running", Seq.empty))
   }
 }
 

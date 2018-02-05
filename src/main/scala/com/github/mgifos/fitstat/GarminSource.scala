@@ -17,8 +17,10 @@ import scala.collection.immutable.{ Map, Seq }
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Random, Try }
+import scala.xml.{ Elem, Node, XML }
+import scala.xml.transform.{ RewriteRule, RuleTransformer }
 
-class GarminFetcher(email: String, password: String)(implicit system: ActorSystem, executionContext: ExecutionContext, mat: ActorMaterializer) extends ActivityFilesFetcher {
+class GarminSource(email: String, password: String)(implicit system: ActorSystem, executionContext: ExecutionContext, mat: ActorMaterializer) extends ActivitiesSource {
 
   case class Session(username: String, headers: Seq[HttpHeader])
 
@@ -30,7 +32,7 @@ class GarminFetcher(email: String, password: String)(implicit system: ActorSyste
 
   private val log = Logger(getClass)
 
-  override def fetch: Source[FileEntry, NotUsed] =
+  override def get: Source[FileEntry, NotUsed] =
     Source.fromFuture(login).flatMapConcat { session =>
       pageSource(session).
         throttle(1, 2.seconds, 1, ThrottleMode.shaping).
@@ -151,7 +153,22 @@ class GarminFetcher(email: String, password: String)(implicit system: ActorSyste
         ).withHeaders(session.headers)
       )
       tcxContent <- res.entity.toStrict(10.seconds).map(_.data.utf8String)
-    } yield FileEntry(ga.tcxFileName, tcxContent)
+    } yield {
+      val rule = new RuleTransformer(new AddActivityName(ga.name))
+      val originalTcx = XML.loadString(tcxContent)
+      FileEntry(ga.tcxFileName, rule.transform(originalTcx).head.toString)
+    }
+  }
+
+  class AddActivityName(name: String) extends RewriteRule {
+    override def transform(n: Node): Seq[Node] = n match {
+      case e: Elem if e.label == "Activity" =>
+        val children = e.child
+        val notes = children.find(_.label == "Notes")
+        val newNotes = notes.map(old => <Notes>{ s"$name\n${old.text}" }</Notes>).getOrElse(<Notes>{ name }</Notes>)
+        new Elem(e.prefix, e.label, e.attributes, e.scope, e.minimizeEmpty, children.filter(_.label != "Notes") ++ newNotes: _*)
+      case x => x
+    }
   }
 
 }

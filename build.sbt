@@ -14,6 +14,10 @@ libraryDependencies ++= Seq(
   guice,
   "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
   "org.webjars" % "bootstrap" % "4.0.0",
+  "org.webjars" % "momentjs" % "2.20.1",
+  "org.webjars" % "visjs" % "4.21.0",
+  "org.webjars" % "vue" % "2.5.13",
+  "org.webjars.npm" % "vue-resource" % "1.3.4",
   "org.webjars" %% "webjars-play" % "2.6.3"
 )
 

@@ -58,6 +58,7 @@ object JsonWritesImplicits {
 
   implicit val activityWrites: Writes[Activity] = (
     (JsPath \ "id").write[String] and
+    (JsPath \ "sport").write[String] and
     (JsPath \ "lap").write[Seq[Lap]] and
     (JsPath \ "notes").writeNullable[String] and
     (JsPath \ "creator").writeNullable[Creator]

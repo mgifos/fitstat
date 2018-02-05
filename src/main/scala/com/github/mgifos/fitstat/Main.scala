@@ -16,7 +16,7 @@ object Main extends App {
 
   val processor = new DefaultProcessor(outputDir = "target", keepTcx = true) // new PrintFileNameProcessor()
 
-  val activitiesFileFetcher: ActivityFilesFetcher = new DirectoryFetcher("tcx-files") //new GarminFetcher(args(0), args(1))
+  val activitiesSource: ActivitiesSource = new GarminSource(args(0), args(1)) //new ZipSource(Paths.get("/home/npe/projects/fitstat/2018-01-24_2454219928_8k_jog.tcx.zip")) //new DirectorySource("tcx-files")
 
   def shutdown(totalFuture: Future[Int]) = totalFuture.onComplete {
     case Success(total) =>
@@ -30,7 +30,7 @@ object Main extends App {
   val graph = GraphDSL.create() { implicit builder =>
     import GraphDSL.Implicits._
 
-    val source = activitiesFileFetcher.fetch
+    val source = activitiesSource.get
     val flow = Flow[FileEntry].mapAsync(3)(processor.process)
     val sink = Sink.fold(0) { (acc, _: Activity) => acc + 1 }.mapMaterializedValue(shutdown)
 

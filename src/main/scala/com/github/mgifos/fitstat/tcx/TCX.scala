@@ -11,6 +11,7 @@ object TCX {
 
   def activity(a: Node): Activity = Activity(
     id = (a \ "Id").text,
+    sport = a \@ "Sport",
     lap = (a \ "Lap").map(lap),
     notes = (a \ "Notes").headOption.map(_.text),
     creator = (a \ "Creator").headOption.map(creator)
@@ -68,11 +69,14 @@ object TCX {
 }
 
 case class Activity(
-  id: String,
-  lap: Seq[Lap],
-  notes: Option[String] = None,
-  creator: Option[Creator] = None
-)
+    id: String,
+    sport: String,
+    lap: Seq[Lap],
+    notes: Option[String] = None,
+    creator: Option[Creator] = None
+) {
+  def startTime: String = lap.headOption.map(_.startTime.toString).getOrElse(id)
+}
 
 case class Lap(
   startTime: ZonedDateTime,
