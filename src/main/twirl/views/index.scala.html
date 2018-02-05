@@ -2,7 +2,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-    @webJarsUtil.locate("vis.css").css()
     @webJarsUtil.locate("bootstrap.css").css()
     <link rel="stylesheet" href="@routes.Assets.at("css/bootstrap-vue.css")">
 
@@ -10,13 +9,8 @@
     @webJarsUtil.locate("vue.js").script()
     @webJarsUtil.locate("dist/vue-resource.min.js").script()
     <script src="@routes.Assets.at("js/bootstrap-vue.min.js")"></script>
-    <script src="@routes.Assets.at("js/vue2vis.min.js")"></script>
 
     <title>Fitstat</title>
-
-    <style>
-        .form-control { margin: 2px; }
-    </style>
 </head>
 <body>
     <b-container id="app">
@@ -27,12 +21,12 @@
                     <b-tabs pills card vertical>
                         <b-tab title="Import ZIP" active>
                             <div><b-form-file  v-model="zip" :state="Boolean(zip)" accept="application/zip" placeholder="Choose ZIP with TCXs"></b-form-file></div>
-                            <b-btn v-on:click="importFromZip">Import</b-btn>
+                            <b-btn class="mt-2" v-on:click="importFromZip">Import</b-btn>
                         </b-tab>
                         <b-tab title="Garmin Connect">
                             <b-form-input v-model="garminEmail" type="text" placeholder="E-mail"></b-form-input>
-                            <b-form-input v-model="garminPassword" type="password" placeholder="Password"></b-form-input>
-                            <b-btn v-on:click="garminSync">Sync</b-btn>
+                            <b-form-input class="mt-2" v-model="garminPassword" type="password" placeholder="Password"></b-form-input>
+                            <b-btn class="mt-2" v-on:click="garminSync">Sync</b-btn>
                         </b-tab>
                         <b-tab title="...">
                           Tab Contents 3
@@ -41,16 +35,18 @@
                 </b-card>
             </b-col>
         </b-row>
-        <b-row style="margin-top: 15px;">
-            <b-col cols="12">
-                <timeline ref="timeline" :items="items" :groups="groups" :options="options"></timeline>
-            </b-col>
+        <b-row>
+            <b-table striped hover :items="activities" :fields="activityFields">
+                <template slot="name" slot-scope="data">
+                    <a :href="`#${data.item.id}`">
+                        {{data.value}}
+                    </a>
+                </template>
+            </b-table>
         </b-row>
     </b-container>
 
     <script type="text/javascript" type="module">
-    var sports = ['Running', 'Biking', 'Other'];
-    Vue.component('timeline', vue2vis.Timeline);
     var app = new Vue({
       el: '#app',
       data() {
@@ -58,37 +54,28 @@
           zip: null,
           garminEmail: '',
           garminPassword: '',
-          groups: [],
-          items: [],
-          options: {
-            autoResize: true,
-            verticalScroll: true
-          }
-        }
-      },
-      created() {
-        var now = moment().minutes(0).seconds(0).milliseconds(0);
-        var groupCount = 2;
-        var itemCount = 1;
-        // create a data set with groups
-        for (var g = 0; g < groupCount; g++) {
-          this.groups.push({
-            id: g,
-            content: sports[g]
-          });
-        }
-        // create a dataset with items
-        for (var i = 0; i < itemCount; i++) {
-          var start = now.clone();
-          var group = Math.floor(Math.random() * groupCount);
-          this.items.push({
-            id: 'id-' + i,
-            group: group,
-            content: 'item ' + i +
-              ' <span style="color:#97B0F8;">(' + sports[group] + ')</span>',
-            start: start,
-            type: 'box'
-          });
+          activityFields: {
+            id: {
+              label: 'Activity ID',
+              sortable: true
+            },
+            name: {
+              label: 'Name',
+              sortable: false
+            },
+            sport: {
+              label: 'Sport',
+              sortable: true
+            },
+            start: {
+              label: 'Start',
+              sortable: true,
+              formatter: (value, key, item) => {
+                return value.format('DD.MM.YYYY hh:mm:ss');
+              }
+            }
+          },
+          activities: []
         }
       },
       methods: {
@@ -96,7 +83,8 @@
             var formData = new FormData();
             formData.append('userfile', this.zip);
             this.$http.post('/importFromZip', formData).then(response => {
-                this.reloadTimelineItems(response.body);
+                console.log(response.body);
+                this.activities = response.body.map(a => Object.assign(a, { start: moment(a.start) } ));
             }, response => {
                 console.log('Error: ' + response.statusText);
             });
@@ -104,13 +92,6 @@
 
         garminSync: function(evt) {
             console.log('Synced');
-        },
-
-        reloadTimelineItems: function(newItems) {
-            this.groups = sports.map((name, i) => ({id: i, content: name}));
-            this.items = newItems.map( x => ({ id: x.id, group: sports.indexOf(x.sport), content: x.name, start: x.start, type: 'box' }));
-            var timeline = this.$refs.timeline;
-            setTimeout(function() { timeline.fit(); }, 200);
         }
       }
     });
