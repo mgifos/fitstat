@@ -4,11 +4,13 @@
 <head>
     @webJarsUtil.locate("bootstrap.css").css()
     <link rel="stylesheet" href="@routes.Assets.at("css/bootstrap-vue.min.css")">
+    <link rel="stylesheet" href="@routes.Assets.at("css/fa-svg-with-js.css")">
 
     @webJarsUtil.locate("moment.min.js").script()
     @webJarsUtil.locate("vue.js").script()
     @webJarsUtil.locate("dist/vue-resource.min.js").script()
     <script src="@routes.Assets.at("js/bootstrap-vue.min.js")"></script>
+    <script src="@routes.Assets.at("js/fontawesome-all.min.js")"></script>
 
     <title>Fitstat</title>
 </head>
@@ -21,12 +23,13 @@
                     <b-tabs pills card vertical>
                         <b-tab title="Import ZIP" active>
                             <div><b-form-file  v-model="zip" :state="Boolean(zip)" accept="application/zip" placeholder="Choose ZIP with TCXs"></b-form-file></div>
-                            <b-btn class="mt-2" v-on:click="importFromZip">Import</b-btn>
+                            <b-btn ref="bImportZip" v-on:click="importFromZip" variant="primary" class="mt-2">Import</b-btn>
                         </b-tab>
                         <b-tab title="Garmin Connect">
                             <b-form-input v-model="garminEmail" type="text" placeholder="E-mail"></b-form-input>
                             <b-form-input class="mt-2" v-model="garminPassword" type="password" placeholder="Password"></b-form-input>
-                            <b-btn class="mt-2" v-on:click="syncGarmin">Sync</b-btn>
+                            <b-btn ref="bSyncGarmin" v-on:click="syncGarmin" variant="primary" class="mt-2">Sync</b-btn>
+                            <span ref="garminStatus" class="pl-4 align-middle"></span>
                         </b-tab>
                         <b-tab title="...">
                           Tab Contents 3
@@ -79,11 +82,17 @@
         importFromZip: function(evt) {
             var formData = new FormData();
             formData.append('userfile', this.zip);
+            this.$refs.bImportZip.disabled = true;
+            this.$refs.bImportZip.innerHTML = 'Import   ' + '<i class="fas fa-spinner fa-spin"></i>';
             this.$http.post('/importFromZip', formData).then(response => {
                 this.activities = [];
                 var feed = new EventSource("/zipEventsStream");
                 console.log("feed", feed);
                 feed.onmessage = (event) => app.activities.push(JSON.parse(event.data));
+                feed.onerror = (event) => {
+                    this.$refs.bImportZip.disabled = false;
+                    this.$refs.bImportZip.innerHTML = 'Import';
+                }
             }, response => {
                 console.log('Error: ' + response.statusText);
             });
@@ -91,9 +100,24 @@
 
         syncGarmin: function(evt) {
             this.activities = [];
+            this.$refs.bSyncGarmin.disabled = true;
+            this.$refs.bSyncGarmin.innerHTML = 'Sync   ' + '<i class="fas fa-spinner fa-spin"></i>';
+
             var feed = new EventSource('/syncWithGarmin/' + this.garminEmail + '/' + this.garminPassword);
             console.log("feed", feed);
-            feed.onmessage = (event) => app.activities.push(JSON.parse(event.data));
+            var counter = 0;
+            feed.onmessage = (event) => {
+                var activity = JSON.parse(event.data);
+                app.activities.push(activity);
+                counter = counter + 1;
+                this.$refs.garminStatus.innerHTML = '<b>' + counter + '</b> ... <i>' + activity.name + '</i>';
+            }
+            feed.onerror = (event) => {
+                this.$refs.bSyncGarmin.disabled = false;
+                this.$refs.bSyncGarmin.innerHTML = 'Sync';
+                this.$refs.garminStatus.innerHTML = '';
+            }
+
         }
       }
     });
