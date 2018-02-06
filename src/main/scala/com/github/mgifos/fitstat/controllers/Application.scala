@@ -1,34 +1,36 @@
 package com.github.mgifos.fitstat.controllers
 
-import java.nio.file.Path
+import java.nio.file.{ Path, Paths }
 import java.time.LocalDateTime
 import javax.inject.Inject
 
 import akka.NotUsed
+import akka.actor.ActorSystem
 import akka.stream.Materializer
-import akka.stream.scaladsl.{ Flow, Keep, Sink, Source }
-import com.github.mgifos.fitstat.tcx.Activity
-import com.github.mgifos.fitstat.{ DefaultProcessor, FileEntry, ZipSource }
+import akka.stream.scaladsl.Source
+import com.github.mgifos.fitstat.{ DefaultProcessor, FileEntry, GarminSource, ZipSource }
 import org.webjars.play.WebJarsUtil
 import play.api.libs.EventSource
-import play.api.libs.json.Json
+import play.api.libs.json._
 import play.api.mvc.MultipartFormData.FilePart
-import play.api.mvc.{ AbstractController, ControllerComponents, WebSocket }
+import play.api.mvc.{ AbstractController, ControllerComponents }
 
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
+
+case class ActivityRef(id: String, name: String, sport: String, start: String)
+
+object ActivityRef {
+  implicit val actionRefFormat = Json.format[ActivityRef]
+}
 
 class Application @Inject() (implicit
   cc: ControllerComponents,
     webJarsUtil: WebJarsUtil,
     mat: Materializer,
+    system: ActorSystem,
     ec: ExecutionContext) extends AbstractController(cc) {
 
   println("Controller created @ " + LocalDateTime.now)
-
-  case class ActivityRef(id: String, name: String, sport: String, start: String)
-
-  implicit val actionRefFormat = Json.using[Json.WithDefaultValues].format[ActivityRef]
 
   def index = Action { implicit req =>
     Ok(views.html.index(webJarsUtil))
@@ -39,15 +41,25 @@ class Application @Inject() (implicit
       case FilePart(_, _, _, file) => file.toPath
     }
     fileOption match {
-      case Some(file) => Ok.chunked(serverEventsStream(new ZipSource(file).get).map(s => Ok(Json.toJson(s))))
+      case Some(file) => Ok.flashing("zip" -> file.toString)
       case None => BadRequest("File not attached!")
     }
   }
 
+  def zipEventsStream = Action { req =>
+    req.flash.get("zip") match {
+      case Some(zip) => Ok.chunked(serverEventsStream(new ZipSource(Paths.get(zip)).get))
+      case None => BadRequest("Zip path is missing!")
+    }
+  }
+
+  def syncWithGarmin(email: String, pwd: String) = Action {
+    //TODO: pwd security issue
+    Ok.chunked(serverEventsStream(new GarminSource(email, pwd).get))
+  }
+
   private def serverEventsStream(source: Source[FileEntry, NotUsed]): Source[EventSource.Event, NotUsed] = {
-
     val processor = new DefaultProcessor(outputDir = "target", keepTcx = true)
-
     source
       .mapAsync(3)(processor.process)
       .map { a =>

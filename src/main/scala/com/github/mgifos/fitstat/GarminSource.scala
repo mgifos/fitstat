@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{ Cookie, `Set-Cookie` }
 import akka.stream.scaladsl.{ Flow, Source }
-import akka.stream.{ ActorMaterializer, ThrottleMode }
+import akka.stream.{ ActorMaterializer, Materializer, ThrottleMode }
 import com.typesafe.scalalogging.Logger
 import play.api.libs.json.{ JsObject, Json }
 
@@ -20,7 +20,7 @@ import scala.util.{ Failure, Random, Try }
 import scala.xml.{ Elem, Node, XML }
 import scala.xml.transform.{ RewriteRule, RuleTransformer }
 
-class GarminSource(email: String, password: String)(implicit system: ActorSystem, executionContext: ExecutionContext, mat: ActorMaterializer) extends ActivitiesSource {
+class GarminSource(email: String, password: String)(implicit system: ActorSystem, executionContext: ExecutionContext, mat: Materializer) extends ActivitiesSource {
 
   case class Session(username: String, headers: Seq[HttpHeader])
 

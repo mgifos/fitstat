@@ -3,7 +3,7 @@
 <html>
 <head>
     @webJarsUtil.locate("bootstrap.css").css()
-    <link rel="stylesheet" href="@routes.Assets.at("css/bootstrap-vue.css")">
+    <link rel="stylesheet" href="@routes.Assets.at("css/bootstrap-vue.min.css")">
 
     @webJarsUtil.locate("moment.min.js").script()
     @webJarsUtil.locate("vue.js").script()
@@ -26,7 +26,7 @@
                         <b-tab title="Garmin Connect">
                             <b-form-input v-model="garminEmail" type="text" placeholder="E-mail"></b-form-input>
                             <b-form-input class="mt-2" v-model="garminPassword" type="password" placeholder="Password"></b-form-input>
-                            <b-btn class="mt-2" v-on:click="garminSync">Sync</b-btn>
+                            <b-btn class="mt-2" v-on:click="syncGarmin">Sync</b-btn>
                         </b-tab>
                         <b-tab title="...">
                           Tab Contents 3
@@ -36,7 +36,7 @@
             </b-col>
         </b-row>
         <b-row>
-            <b-table striped hover :items="activities" :fields="activityFields">
+            <b-table class="mt-4" striped hover :items="activities" :fields="activityFields">
                 <template slot="name" slot-scope="data">
                     <a :href="`#${data.item.id}`">
                         {{data.value}}
@@ -69,10 +69,7 @@
             },
             start: {
               label: 'Start',
-              sortable: true,
-              formatter: (value, key, item) => {
-                return value.format('DD.MM.YYYY hh:mm:ss');
-              }
+              sortable: true
             }
           },
           activities: []
@@ -83,30 +80,20 @@
             var formData = new FormData();
             formData.append('userfile', this.zip);
             this.$http.post('/importFromZip', formData).then(response => {
-                var feed = new EventSource("/importFromZip");
+                this.activities = [];
+                var feed = new EventSource("/zipEventsStream");
                 console.log("feed", feed);
-                feed.addEventListener('message', function(event) {
-                    console.log(event);
-                    var result  = jQuery.parseJSON(event.data);
-                    console.log(result);
-                }, false);
-
-
-
-
-
-
-
-
-                <!--console.log(response.body);-->
-                <!--this.activities = response.body.map(a => Object.assign(a, { start: moment(a.start) } ));-->
+                feed.onmessage = (event) => app.activities.push(JSON.parse(event.data));
             }, response => {
                 console.log('Error: ' + response.statusText);
             });
         },
 
-        garminSync: function(evt) {
-            console.log('Synced');
+        syncGarmin: function(evt) {
+            this.activities = [];
+            var feed = new EventSource('/syncWithGarmin/' + this.garminEmail + '/' + this.garminPassword);
+            console.log("feed", feed);
+            feed.onmessage = (event) => app.activities.push(JSON.parse(event.data));
         }
       }
     });
