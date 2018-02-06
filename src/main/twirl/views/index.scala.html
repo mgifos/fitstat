@@ -83,8 +83,23 @@
             var formData = new FormData();
             formData.append('userfile', this.zip);
             this.$http.post('/importFromZip', formData).then(response => {
-                console.log(response.body);
-                this.activities = response.body.map(a => Object.assign(a, { start: moment(a.start) } ));
+                var feed = new EventSource("/importFromZip");
+                console.log("feed", feed);
+                feed.addEventListener('message', function(event) {
+                    console.log(event);
+                    var result  = jQuery.parseJSON(event.data);
+                    console.log(result);
+                }, false);
+
+
+
+
+
+
+
+
+                <!--console.log(response.body);-->
+                <!--this.activities = response.body.map(a => Object.assign(a, { start: moment(a.start) } ));-->
             }, response => {
                 console.log('Error: ' + response.statusText);
             });

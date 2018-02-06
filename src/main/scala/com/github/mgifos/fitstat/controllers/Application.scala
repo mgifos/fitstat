@@ -10,6 +10,7 @@ import akka.stream.scaladsl.{ Flow, Keep, Sink, Source }
 import com.github.mgifos.fitstat.tcx.Activity
 import com.github.mgifos.fitstat.{ DefaultProcessor, FileEntry, ZipSource }
 import org.webjars.play.WebJarsUtil
+import play.api.libs.EventSource
 import play.api.libs.json.Json
 import play.api.mvc.MultipartFormData.FilePart
 import play.api.mvc.{ AbstractController, ControllerComponents, WebSocket }
@@ -33,43 +34,26 @@ class Application @Inject() (implicit
     Ok(views.html.index(webJarsUtil))
   }
 
-  def importFromZip = Action.async(parse.multipartFormData(50 * 1024 * 1024)) { req =>
+  def importFromZip = Action(parse.multipartFormData(50 * 1024 * 1024)) { req =>
     val fileOption: Option[Path] = req.body.file("userfile").map {
       case FilePart(_, _, _, file) => file.toPath
     }
     fileOption match {
-      case Some(file) => process(new ZipSource(file).get).map(s => Ok(Json.toJson(s)))
-      case None => Future.successful(BadRequest("File not attached!"))
+      case Some(file) => Ok.chunked(serverEventsStream(new ZipSource(file).get).map(s => Ok(Json.toJson(s))))
+      case None => BadRequest("File not attached!")
     }
   }
 
-  def socket = WebSocket.accept[String, String] { request =>
-
-    // Log events to the console
-    val in = Sink.ignore
-
-    case class X(s: String) {
-      override def toString = s + Math.random()
-    }
-
-    // Send a single 'Hello!' message and then leave the socket open
-    val out = Source.tick(1.second, 2.seconds, X("Hello")).map(_.toString)
-
-    Flow.fromSinkAndSource(in, out)
-  }
-
-  private def process(source: Source[FileEntry, NotUsed]): Future[Seq[ActivityRef]] = {
+  private def serverEventsStream(source: Source[FileEntry, NotUsed]): Source[EventSource.Event, NotUsed] = {
 
     val processor = new DefaultProcessor(outputDir = "target", keepTcx = true)
 
-    val flow = Flow[FileEntry].mapAsync(3)(processor.process)
-    val sink = Sink.fold(Seq.empty[ActivityRef]) { (acc: Seq[ActivityRef], a: Activity) =>
-      acc :+ ActivityRef(a.id, a.notes.map(_.takeWhile(_ != '\n')).getOrElse("no-name"), a.sport, a.startTime)
-    }
-
     source
-      .via(flow)
-      .toMat(sink)(Keep.right)
-      .run()
+      .mapAsync(3)(processor.process)
+      .map { a =>
+        val ref = ActivityRef(a.id, a.notes.map(_.takeWhile(_ != '\n')).getOrElse("no-name"), a.sport, a.startTime)
+        Json.toJson(ref)
+      }
+      .via(EventSource.flow)
   }
 }
