@@ -8,8 +8,8 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{ Cookie, `Set-Cookie` }
+import akka.stream.Materializer
 import akka.stream.scaladsl.{ Flow, Source }
-import akka.stream.{ ActorMaterializer, Materializer, ThrottleMode }
 import com.typesafe.scalalogging.Logger
 import play.api.libs.json.{ JsObject, Json }
 
@@ -17,14 +17,12 @@ import scala.collection.immutable.{ Map, Seq }
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Random, Try }
-import scala.xml.{ Elem, Node, XML }
 import scala.xml.transform.{ RewriteRule, RuleTransformer }
+import scala.xml.{ Elem, Node, XML }
 
 class GarminSource(email: String, password: String)(implicit system: ActorSystem, executionContext: ExecutionContext, mat: Materializer) extends ActivitiesSource {
 
   case class Session(username: String, headers: Seq[HttpHeader])
-
-  case class ActivitiesPage(no: Int, activities: Seq[GarminActivity])
 
   case class GarminActivity(id: Long, name: String, date: String, desc: String) {
     def tcxFileName = s"${date}_${id}_${name}.tcx".replaceAll("[^a-zA-Z0-9\\.\\-]", "_")
@@ -35,8 +33,7 @@ class GarminSource(email: String, password: String)(implicit system: ActorSystem
   override def get: Source[FileEntry, NotUsed] =
     Source.fromFuture(login).flatMapConcat { session =>
       pageSource(session).
-        throttle(1, 2.seconds, 1, ThrottleMode.shaping).
-        flatMapConcat(page => Source(page.activities)).
+        flatMapConcat(Source(_)).
         via(downloadTcxActivityFlow(session))
     }
 
@@ -99,15 +96,15 @@ class GarminSource(email: String, password: String)(implicit system: ActorSystem
     }
   }
 
-  private def pageSource(session: Session): Source[ActivitiesPage, NotUsed] = {
+  private def pageSource(session: Session): Source[Seq[GarminActivity], NotUsed] = {
     val pageSize = 20
 
-    Source.unfoldAsync(ActivitiesPage(0, Seq.empty[GarminActivity])) { page =>
-      getActivitiesPage(page.no, pageSize, session).map {
+    Source.unfoldAsync[Int, Seq[GarminActivity]](0) { page =>
+      getActivitiesPage(page, pageSize, session).map {
         case Nil => None
         case activities =>
-          log.info(s"> Page ${page.no} loaded")
-          Some((ActivitiesPage(page.no + 1, activities), page))
+          log.info(s"> Page ${page} loaded")
+          Some(page + 1, activities)
       }
     }
   }
