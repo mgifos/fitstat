@@ -10,10 +10,11 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import com.github.mgifos.fitstat.{ DefaultProcessor, FileEntry, GarminSource, ZipSource }
 import org.webjars.play.WebJarsUtil
+import play.api.http.ContentTypes
 import play.api.libs.EventSource
 import play.api.libs.json._
 import play.api.mvc.MultipartFormData.FilePart
-import play.api.mvc.{ AbstractController, ControllerComponents }
+import play.api.mvc.{ AbstractController, ControllerComponents, Cookie, DiscardingCookie }
 
 import scala.concurrent.ExecutionContext
 
@@ -41,14 +42,16 @@ class Application @Inject() (implicit
       case FilePart(_, _, _, file) => file.toPath
     }
     fileOption match {
-      case Some(file) => Ok.flashing("zip" -> file.toString)
+      case Some(file) => Ok.withCookies(Cookie("zip", file.toString)).bakeCookies().as(ContentTypes.TEXT)
       case None => BadRequest("File not attached!")
     }
   }
 
   def zipEventsStream = Action { req =>
-    req.flash.get("zip") match {
-      case Some(zip) => Ok.chunked(serverEventsStream(new ZipSource(Paths.get(zip)).get))
+    req.cookies.get("zip") match {
+      case Some(zip) =>
+        Ok.chunked(serverEventsStream(new ZipSource(Paths.get(zip.value)).get))
+          .discardingCookies(DiscardingCookie("zip"))
       case None => BadRequest("Zip path is missing!")
     }
   }

@@ -88,18 +88,19 @@
             this.$http.post('/importFromZip', formData).then(response => {
                 this.activities = [];
                 var feed = new EventSource("/zipEventsStream");
-                console.log("feed", feed);
                 var counter = 0;
-                feed.onmessage = (event) => {
-                    var activity = JSON.parse(event.data);
+                feed.onmessage = (e) => {
+                    var activity = JSON.parse(e.data);
                     app.activities.push(activity);
                     counter = counter + 1;
                     this.$refs.importStatus.innerHTML = '<b>' + counter + '</b> ... <i>' + activity.name + '</i>';
                 }
-                feed.onerror = (event) => {
-                    this.$refs.bImportZip.disabled = false;
-                    this.$refs.bImportZip.innerHTML = 'Import';
-                    this.$refs.importStatus.innerHTML = '';
+                feed.onerror = (e) => {
+                    if (e.target.readyState == 2) { //closed
+                        this.$refs.bImportZip.disabled = false;
+                        this.$refs.bImportZip.innerHTML = 'Import';
+                        this.$refs.importStatus.innerHTML = '<b>' + counter + '</b> activities has been imported';
+                    }
 
                 }
             }, response => {
@@ -113,20 +114,20 @@
             this.$refs.bSyncGarmin.innerHTML = 'Sync   ' + '<i class="fas fa-spinner fa-spin"></i>';
 
             var feed = new EventSource('/syncWithGarmin/' + this.garminEmail + '/' + this.garminPassword);
-            console.log("feed", feed);
             var counter = 0;
-            feed.onmessage = (event) => {
-                var activity = JSON.parse(event.data);
+            feed.onmessage = (e) => {
+                var activity = JSON.parse(e.data);
                 app.activities.push(activity);
                 counter = counter + 1;
                 this.$refs.garminStatus.innerHTML = '<b>' + counter + '</b> ... <i>' + activity.name + '</i>';
             }
-            feed.onerror = (event) => {
-                this.$refs.bSyncGarmin.disabled = false;
-                this.$refs.bSyncGarmin.innerHTML = 'Sync';
-                this.$refs.garminStatus.innerHTML = '';
+            feed.onerror = (e) => {
+                if (e.target.readyState == 2) { //closed
+                    this.$refs.bSyncGarmin.disabled = false;
+                    this.$refs.bSyncGarmin.innerHTML = 'Sync';
+                    this.$refs.garminStatus.innerHTML = '<b>' + counter + '</b> activities has been synced';
+                }
             }
-
         }
       }
     });
